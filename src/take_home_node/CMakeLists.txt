@@ -11,6 +11,8 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_components REQUIRED)
 find_package(nav_msgs REQUIRED)
+find_package(novatel_oem7_msgs REQUIRED)
+find_package(raptor_dbw_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(raptor_dbw_msgs REQUIRED)
@@ -34,6 +36,8 @@ ament_target_dependencies(${PROJECT_NAME}
   rclcpp
   rclcpp_components
   nav_msgs
+  novatel_oem7_msgs
+  raptor_dbw_msgs
   geometry_msgs
   std_msgs
   ament_index_cpp
