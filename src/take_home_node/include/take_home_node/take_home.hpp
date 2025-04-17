@@ -2,11 +2,15 @@
 
 // Here we include message types which we can subscribe to or publish
 #include <std_msgs/msg/float32.hpp>
-#include <nav_msgs/msg/odometry.hpp> 
+
+#include <nav_msgs/msg/odometry.hpp>
+#include <novatel_oem7_msgs/msg/rawimu.hpp>
+
 
 #include <rclcpp/node.hpp>
 #include <rclcpp/node_options.hpp>
 #include <rclcpp/rclcpp.hpp>
+
 
 class TakeHome : public rclcpp::Node {
  public:
@@ -14,10 +18,15 @@ class TakeHome : public rclcpp::Node {
 
   void odometry_callback(nav_msgs::msg::Odometry::ConstSharedPtr odom_msg);
 
+  void imu_callback(novatel_oem7_msgs::msg::RAWIMU::ConstSharedPtr imu_msg);
+
  private:
 
   // Subscribers and Publishers
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odometry_subscriber_;
+  rclcpp::Subscription<novatel_oem7_msgs::msg::RAWIMU>::SharedPtr rawIMU_subscriber;
+
   rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr metric_publisher_;
+  rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr jitter_publisher_;
 
 };
