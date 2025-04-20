@@ -24,9 +24,22 @@ TakeHome::TakeHome(const rclcpp::NodeOptions& options)
         "/curvilinear_distance", reliable_qos_profile,
         std::bind(&TakeHome::lap_callback, this, std::placeholders::_1));
 
+    wheelSpeedSubscriber_ = this->create_subscription<raptor_dbw_msgs::msg::WheelSpeedReport>(
+        "/raptor_dbw_interface/wheel_speed_report", qos_profile,
+        std::bind(&TakeHome::speed_callback, this, std::placeholders::_1));
+
+    wheelSteerSubscriber_ = this->create_subscription<raptor_dbw_msgs::msg::SteeringExtendedReport>(
+        "/raptor_dbw_interface/steering_extended_report", qos_profile,
+        std::bind(&TakeHome::steer_callback, this, std::placeholders::_1));
+
     metric_publisher_ = this->create_publisher<std_msgs::msg::Float32>("metrics_output", qos_profile);
     jitter_publisher_ = this->create_publisher<std_msgs::msg::Float32>("imu_top/jitter", qos_profile);
     lap_publisher_ = this->create_publisher<std_msgs::msg::Float32>("lap_time", qos_profile);
+
+    rr_publisher = this->create_publisher<std_msgs::msg::Float32>("slip/long/rr", qos_profile);
+    rl_publisher = this->create_publisher<std_msgs::msg::Float32>("slip/long/rl", qos_profile);
+    fr_publisher = this->create_publisher<std_msgs::msg::Float32>("slip/long/fr", qos_profile);
+    fl_publisher = this->create_publisher<std_msgs::msg::Float32>("slip/long/fl", qos_profile);
 
 
 }
@@ -45,6 +58,9 @@ double_t currentTime = 0;
  * and from the corresponding WheelSpeedReport.msg file we see that we can do msg->front_left for the front left speed for instance.
  * For the built in ROS2 messages, we can find the documentation online: e.g. https://docs.ros.org/en/noetic/api/nav_msgs/html/msg/Odometry.html
  */
+float v_x = 0;
+float v_y = 0;
+float omega = 0;
 
 void TakeHome::odometry_callback(nav_msgs::msg::Odometry::ConstSharedPtr odom_msg) {
   float position_x = odom_msg->pose.pose.position.x;
@@ -52,6 +68,11 @@ void TakeHome::odometry_callback(nav_msgs::msg::Odometry::ConstSharedPtr odom_ms
   float position_z = odom_msg->pose.pose.position.z;
 
   // Do stuff with this callback! or more, idc
+
+  v_x = odom_msg->twist.twist.linear.x;
+  v_y = odom_msg->twist.twist.linear.y;
+
+  omega = odom_msg->twist.twist.angular.z;
 
   rclcpp::Time timestamp = odom_msg->header.stamp;
   currentTime = convertToDouble(timestamp);
@@ -118,6 +139,49 @@ void TakeHome::lap_callback(std_msgs::msg::Float32::ConstSharedPtr lap_msg) {
     lap_publisher_->publish(time_msg);
 
     lastDistance = dist;
+}
+
+// In radians.
+float front_wheel_angle = 0;
+void TakeHome::steer_callback(raptor_dbw_msgs::msg::SteeringExtendedReport::ConstSharedPtr steer_msg) {
+    float raw_angle = steer_msg->primary_steering_angle_fbk;
+    float front_wheel_angle_degrees = raw_angle / 15.0f;
+    front_wheel_angle = front_wheel_angle_degrees * (M_PI / 180.0f);
+}
+
+const float_t w_f = 1.638;
+const float_t w_r = 1.523;
+const float_t l_f = 1.7238;
+
+void TakeHome::speed_callback(raptor_dbw_msgs::msg::WheelSpeedReport::ConstSharedPtr speed_msg) {
+
+    float kmph_to_ms = 1000.0f/3600.0f;
+
+    float speed_rr = speed_msg->rear_right * kmph_to_ms;
+    float speed_rl = speed_msg->rear_left * kmph_to_ms;
+    float speed_fr = speed_msg->front_right * kmph_to_ms;
+    float speed_fl = speed_msg->front_left * kmph_to_ms;
+
+    float v_xr = v_x - (0.5f * omega * w_r);
+    float slip_rr = (speed_rr - v_xr) / v_xr;
+    float slip_rl = (speed_rl - v_xr) / v_xr;
+
+    float v_xf = v_x - 0.5f * omega * w_f;
+    float v_yf = v_y + omega * l_f;
+    float v_steer_x = cos(front_wheel_angle) * v_xf - sin(front_wheel_angle) * v_yf;
+    float slip_fr = (speed_fr - v_steer_x) / v_steer_x;
+    float slip_fl = (speed_fl - v_steer_x) / v_steer_x;
+
+    std_msgs::msg::Float32 rr_msg, rl_msg, fr_msg, fl_msg;
+    rr_msg.data = slip_rr;
+    rl_msg.data = slip_rl;
+    fr_msg.data = slip_fr;
+    fl_msg.data = slip_fl;
+
+    rr_publisher->publish(rr_msg);
+    rl_publisher->publish(rl_msg);
+    fr_publisher->publish(fr_msg);
+    fl_publisher->publish(fl_msg);
 }
 
 
