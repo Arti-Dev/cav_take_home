@@ -21,7 +21,7 @@ TakeHome::TakeHome(const rclcpp::NodeOptions& options)
         std::bind(&TakeHome::imu_callback, this, std::placeholders::_1));
 
     lap_subscriber_ = this->create_subscription<std_msgs::msg::Float32>(
-        "/curvilinear_distance", reliable_qos_profile,
+        "/curvilinear_distance", qos_profile,
         std::bind(&TakeHome::lap_callback, this, std::placeholders::_1));
 
     wheelSpeedSubscriber_ = this->create_subscription<raptor_dbw_msgs::msg::WheelSpeedReport>(
@@ -93,6 +93,12 @@ void TakeHome::imu_callback(novatel_oem7_msgs::msg::RAWIMU::ConstSharedPtr imu_m
         timestampQueue.pop_front();
     }
 
+    // for (long unsigned int i = 0; i < timestampQueue.size(); i++) {
+    //     std::cout << timestampQueue[i] << ' ';
+    // }
+    //
+    // std::cout << '\n';
+
     std::list<double_t> delta_ts;
     for (long unsigned int i = 1; i < timestampQueue.size(); i++) {
         delta_ts.push_back(timestampQueue[i] - timestampQueue[i-1]);
@@ -116,24 +122,24 @@ void TakeHome::imu_callback(novatel_oem7_msgs::msg::RAWIMU::ConstSharedPtr imu_m
     jitter_publisher_->publish(time_msg);
 }
 
-int lap = 0;
 double_t lastFinishLineTime = 0;
+int lap = 0;
 float_t lastDistance;
 void TakeHome::lap_callback(std_msgs::msg::Float32::ConstSharedPtr lap_msg) {
-    // assume that when lap_msg is 0 it means the car has crossed the finish line
-    // in reality, not sure if this will always happen (due to inconsistencies, maybe it reports -1 or 1)
-    // but the bag seems to be fine
+
+    // This computation does not take into account cases where the car is going backwards.
+    // It also doesn't take into account when the bag is restarted.
 
     float_t dist = lap_msg->data;
-    if (lap == 0 && dist == 0) {
+    // look for a large delta - signals when car crosses finish line
+    if (abs(lastDistance - dist) > 2000) {
         lastFinishLineTime = currentTime;
         lap = 1;
-    } else if (lap == 1 && dist == 0 && lastDistance > 0) {
-        lastFinishLineTime = currentTime;
     }
 
     double_t lapTime = currentTime - lastFinishLineTime;
     if (lap == 0) lapTime = 0;
+
     std_msgs::msg::Float32 time_msg;
     time_msg.data = lapTime;
     lap_publisher_->publish(time_msg);
