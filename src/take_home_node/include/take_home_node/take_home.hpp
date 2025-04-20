@@ -20,13 +20,16 @@ class TakeHome : public rclcpp::Node {
 
   void imu_callback(novatel_oem7_msgs::msg::RAWIMU::ConstSharedPtr imu_msg);
 
+  void lap_callback(std_msgs::msg::Float32::ConstSharedPtr lap_msg);
+
  private:
 
   // Subscribers and Publishers
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odometry_subscriber_;
-  rclcpp::Subscription<novatel_oem7_msgs::msg::RAWIMU>::SharedPtr rawIMU_subscriber;
+  rclcpp::Subscription<novatel_oem7_msgs::msg::RAWIMU>::SharedPtr rawIMU_subscriber_;
+  rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr lap_subscriber_;
 
   rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr metric_publisher_;
   rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr jitter_publisher_;
-
+  rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr lap_publisher_;
 };
